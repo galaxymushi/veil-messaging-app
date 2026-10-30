@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Lock, ArrowRight, Info, Check } from "lucide-react";
+import { Lock, ArrowRight, Info, Check, Code2, ArrowUpRight } from "lucide-react";
 
 interface WelcomeScreenProps {
   onStart: () => void;
@@ -135,9 +135,38 @@ export function WelcomeScreen({
           </ul>
         </main>
 
-        <footer className="flex shrink-0 flex-col gap-1 border-t border-gray-200/80 py-4 text-[11px] text-gray-400 sm:flex-row sm:items-center sm:justify-between">
-          <span>Signaling only sets up the connection. Message content never reaches it.</span>
-          <span className="font-mono">DTLS/SCTP · WebRTC</span>
+        <footer className="flex shrink-0 flex-col gap-4 border-t border-gray-200/80 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <a
+            href="https://github.com/galaxymushi"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="Galaxy Mushi on GitHub"
+            className="group flex items-center gap-2.5 self-start rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-900 text-[11px] font-semibold tracking-wide text-white">
+              GM
+            </span>
+            <span className="leading-tight">
+              <span className="block text-xs font-medium text-gray-800 transition group-hover:text-indigo-700">
+                Designed &amp; built by Galaxy Mushi
+              </span>
+              <span className="block text-[11px] text-gray-400">Independent project</span>
+            </span>
+            <ArrowUpRight className="h-3.5 w-3.5 text-gray-300 transition group-hover:text-indigo-500" />
+          </a>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-gray-400">
+            <span>Signaling only sets up the connection. Message content never reaches it.</span>
+            <a
+              href="https://github.com/galaxymushi/veil-messaging-app"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-gray-500 transition hover:text-gray-900"
+            >
+              <Code2 className="h-3.5 w-3.5" />
+              Source
+            </a>
+            <span className="font-mono">DTLS/SCTP · WebRTC</span>
+          </div>
         </footer>
       </div>
     </div>
