@@ -30,19 +30,21 @@ export function generateSafetyNumber(seed1: string, seed2: string): string {
     hash = (hash << 5) - hash + char;
     hash |= 0;
   }
-  const abs = Math.abs(hash).toString().padStart(12, "823904128471");
-  return `${abs.slice(0, 4)} ${abs.slice(4, 8)} ${abs.slice(8, 12)}`;
+  const digits = Math.abs(hash).toString().padStart(12, "0").slice(0, 12);
+  return `${digits.slice(0, 4)} ${digits.slice(4, 8)} ${digits.slice(8, 12)}`;
 }
 
 export function generateFingerprint(): string {
-  const hex = "0123456789ABCDEF";
-  const blocks: string[] = [];
-  for (let b = 0; b < 4; b++) {
-    let block = "";
-    for (let i = 0; i < 4; i++) {
-      block += hex.charAt(Math.floor(Math.random() * hex.length));
+  const bytes = new Uint8Array(8);
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    crypto.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
     }
-    blocks.push(block);
   }
-  return blocks.join(":");
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+  return hex.match(/.{4}/g)?.join(":") ?? "";
 }

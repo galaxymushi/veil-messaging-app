@@ -1,21 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  Search,
-  Plus,
-  Shield,
-  Clock,
-  Sparkles,
-  Settings,
-  Lock,
-  ChevronRight,
-  Wifi,
-  WifiOff,
-  UserCheck,
-  CheckCheck,
-  Info,
-} from "lucide-react";
+import { Search, Plus, Info, Settings, Clock, ChevronRight, Shield, Lock } from "lucide-react";
 import { Conversation } from "@/types/veil";
 
 interface InboxScreenProps {
@@ -40,178 +26,182 @@ export function InboxScreen({
   onOpenHowItWorks,
 }: InboxScreenProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const initial = userName.trim().slice(0, 1).toUpperCase() || "?";
 
   const filteredConversations = conversations.filter((c) =>
     c.peerName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto w-full p-4 sm:p-6">
-      {/* Top Header Card */}
-      <div className="glass-panel rounded-3xl p-4 sm:p-5 mb-4 shadow-lg border border-white/90">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold">
-              {userName.slice(0, 1).toUpperCase()}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-800 leading-none">{userName}</h2>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Ephemeral Client Active" />
-              </div>
-              <p className="text-[11px] text-slate-500 font-mono mt-1">ID: {fingerprint.slice(0, 9)}...</p>
-            </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="app-header shrink-0">
+        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="brand-mark">
+              <Lock className="h-4 w-4" strokeWidth={2.5} />
+            </span>
+            <span className="text-sm font-semibold tracking-[0.16em] text-gray-900">VEIL</span>
+            <span className="hidden border-l border-gray-200 pl-3 text-xs text-gray-400 sm:inline">
+              Inbox
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={onOpenHowItWorks}
-              className="p-2.5 rounded-2xl bg-white/70 hover:bg-white text-slate-600 hover:text-sky-600 border border-sky-100 transition-all shadow-sm"
-              title="Architecture and Transparency"
-            >
-              <Info className="w-4 h-4" />
+            <button onClick={onOpenHowItWorks} className="icon-btn" title="How it works">
+              <Info className="h-4 w-4" />
             </button>
-            <button
-              onClick={onOpenSettings}
-              className="p-2.5 rounded-2xl bg-white/70 hover:bg-white text-slate-600 hover:text-sky-600 border border-sky-100 transition-all shadow-sm"
-              title="Security & Privacy Settings"
-            >
-              <Settings className="w-4 h-4" />
+            <button onClick={onOpenSettings} className="icon-btn" title="Settings and privacy">
+              <Settings className="h-4 w-4" />
             </button>
-            <button
-              onClick={onNewChat}
-              className="btn-electric px-3.5 py-2 rounded-2xl text-xs font-semibold flex items-center gap-1.5 shadow-md"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Private Chat</span>
+            <button onClick={onNewChat} aria-label="New conversation" className="btn btn-primary h-9">
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">New chat</span>
             </button>
           </div>
         </div>
+      </header>
 
-        {/* Ephemeral Memory Alert Banner */}
-        <div className="mt-4 pt-3 border-t border-sky-100/70 flex items-center justify-between text-[11px] text-slate-500">
-          <div className="flex items-center gap-1.5">
-            <Shield className="w-3.5 h-3.5 text-sky-600" />
-            <span>Zero database storage. Chats exist only while this session is open.</span>
+      <main className="mx-auto flex w-full max-w-5xl flex-1 min-h-0 flex-col px-4 pb-6 pt-6 sm:px-6">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight text-gray-900">Conversations</h1>
+            <p className="mt-1 text-xs text-gray-500">Ephemeral sessions held in this tab only.</p>
           </div>
-          <span className="text-sky-700 font-medium">Memory: Active</span>
+          <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white py-1 pl-1 pr-3">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-50 text-[10px] font-semibold text-indigo-700">
+              {initial}
+            </span>
+            <span className="max-w-[140px] truncate text-xs font-medium text-gray-700">{userName}</span>
+            <span className="status-dot bg-emerald-500" title="Session active" />
+          </div>
         </div>
-      </div>
 
-      {/* Search and Filter */}
-      <div className="mb-4">
-        <div className="relative">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        <div className="relative mb-3">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search peer conversations..."
+            placeholder="Search conversations"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 glass-panel-subtle rounded-2xl text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-400/40 border border-white/90 shadow-sm"
+            className="field h-10 pl-9 pr-3 text-sm"
           />
         </div>
-      </div>
 
-      {/* Conversation List */}
-      <div className="flex-1 overflow-y-auto space-y-2.5 pr-1">
-        {filteredConversations.length === 0 ? (
-          <div className="h-64 glass-panel rounded-3xl flex flex-col items-center justify-center p-6 text-center border border-white/80">
-            <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-500 flex items-center justify-center mb-3">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <h3 className="text-sm font-semibold text-slate-800">No active conversations</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-xs leading-relaxed">
-              Generate an invite code or scan a peer&apos;s QR to initiate a zero-trace direct connection.
-            </p>
-            <button
-              onClick={onNewChat}
-              className="mt-4 px-4 py-2 rounded-xl btn-electric text-xs font-medium text-white shadow-sm"
-            >
-              Start Direct Connection
-            </button>
-          </div>
-        ) : (
-          filteredConversations.map((conv) => {
-            const lastMessage = conv.messages[conv.messages.length - 1];
-            const isConnected = conv.connectionStatus === "connected";
-            const isConnecting = conv.connectionStatus === "connecting" || conv.connectionStatus === "waiting_for_peer";
-
-            return (
-              <div
-                key={conv.id}
-                onClick={() => onSelectConversation(conv.id)}
-                className={`glass-panel glass-card-interactive p-4 rounded-3xl cursor-pointer border flex items-center justify-between gap-3 ${
-                  activeConversationId === conv.id ? "border-sky-400 ring-2 ring-sky-400/30 bg-white/90" : "border-white/90"
-                }`}
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-400 to-indigo-500 flex items-center justify-center text-white font-bold text-base shadow-sm">
-                      {conv.peerName.slice(0, 1).toUpperCase()}
-                    </div>
-                    {/* Status Dot */}
-                    <span
-                      className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-white ${
-                        isConnected
-                          ? "bg-emerald-500"
-                          : isConnecting
-                          ? "bg-amber-400 animate-pulse"
-                          : "bg-slate-400"
-                      }`}
-                      title={`Status: ${conv.connectionStatus}`}
-                    />
-                  </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-slate-800 truncate">{conv.peerName}</h4>
-                      {conv.connectionType === "demo-simulation" && (
-                        <span className="text-[9px] uppercase tracking-wider font-semibold bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded border border-sky-100">
-                          Sandbox
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 truncate mt-0.5">
-                      {lastMessage ? (
-                        <span>
-                          {lastMessage.isSelf ? "You: " : ""}
-                          {lastMessage.text}
-                        </span>
-                      ) : (
-                        <span className="italic text-slate-400">Direct channel open. Say hello...</span>
-                      )}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-end shrink-0 gap-1.5">
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    {lastMessage
-                      ? new Date(lastMessage.timestamp).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "Active"}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {conv.disappearingTimerSeconds > 0 && (
-                      <span className="flex items-center gap-0.5 text-[10px] text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded-full border border-sky-100">
-                        <Clock className="w-2.5 h-2.5" />
-                        {conv.disappearingTimerSeconds < 60
-                          ? `${conv.disappearingTimerSeconds}s`
-                          : conv.disappearingTimerSeconds < 3600
-                          ? `${conv.disappearingTimerSeconds / 60}m`
-                          : "1h"}
-                      </span>
-                    )}
-                    <ChevronRight className="w-4 h-4 text-slate-300" />
-                  </div>
-                </div>
+        <div className="panel flex min-h-0 flex-1 flex-col overflow-hidden">
+          {filteredConversations.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-400">
+                <Shield className="h-6 w-6" />
               </div>
-            );
-          })
-        )}
-      </div>
+              <h3 className="mt-4 text-sm font-semibold text-gray-900">
+                {conversations.length === 0 ? "No active conversations" : "No matches found"}
+              </h3>
+              <p className="mt-1 max-w-xs text-xs leading-relaxed text-gray-500">
+                {conversations.length === 0
+                  ? "Create a single-use invite or enter a peer's code to open a direct, zero-trace channel."
+                  : "Try a different name — sessions are only visible while this tab is open."}
+              </p>
+              {conversations.length === 0 && (
+                <button onClick={onNewChat} className="btn btn-primary mt-5">
+                  <Plus className="h-4 w-4" />
+                  Start a direct connection
+                </button>
+              )}
+            </div>
+          ) : (
+            <ul className="min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto">
+              {filteredConversations.map((conv) => {
+                const lastMessage = conv.messages[conv.messages.length - 1];
+                const isConnected = conv.connectionStatus === "connected";
+                const isConnecting =
+                  conv.connectionStatus === "connecting" || conv.connectionStatus === "waiting_for_peer";
+                const isActive = activeConversationId === conv.id;
+
+                return (
+                  <li key={conv.id}>
+                    <button
+                      onClick={() => onSelectConversation(conv.id)}
+                      aria-current={isActive ? "true" : undefined}
+                      className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors sm:px-5 ${
+                        isActive ? "bg-indigo-50/50" : "hover:bg-gray-50"
+                      }`}
+                    >
+                      <div className="relative shrink-0">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700">
+                          {conv.peerName.slice(0, 1).toUpperCase()}
+                        </div>
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${
+                            isConnected
+                              ? "bg-emerald-500"
+                              : isConnecting
+                                ? "bg-amber-400"
+                                : "bg-gray-300"
+                          }`}
+                          title={`Status: ${conv.connectionStatus}`}
+                        />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="truncate text-sm font-semibold text-gray-900">{conv.peerName}</h4>
+                          {conv.connectionType === "demo-simulation" && (
+                            <span className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500">
+                              Sandbox
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-gray-500">
+                          {lastMessage ? (
+                            <>
+                              {lastMessage.isSelf ? "You: " : ""}
+                              {lastMessage.text}
+                            </>
+                          ) : (
+                            <span className="italic text-gray-400">Channel open. Say hello…</span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <span className="font-mono text-[10px] text-gray-400">
+                          {lastMessage
+                            ? new Date(lastMessage.timestamp).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "Active"}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          {conv.disappearingTimerSeconds > 0 && (
+                            <span className="flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] text-gray-500">
+                              <Clock className="h-2.5 w-2.5" />
+                              {conv.disappearingTimerSeconds < 60
+                                ? `${conv.disappearingTimerSeconds}s`
+                                : conv.disappearingTimerSeconds < 3600
+                                  ? `${conv.disappearingTimerSeconds / 60}m`
+                                  : "1h"}
+                            </span>
+                          )}
+                          <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
+                        </div>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <div className="flex shrink-0 items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/60 px-4 py-2 text-[11px] text-gray-500">
+            <span className="flex items-center gap-1.5">
+              <Shield className="h-3 w-3 text-gray-400" />
+              Messages live in this tab&apos;s memory only.
+            </span>
+            <span className="hidden font-mono text-gray-400 sm:inline">ID {fingerprint.slice(0, 9)}…</span>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { SafetyNumberModal } from "@/components/SafetyNumberModal";
 import { HowItWorksModal } from "@/components/HowItWorksModal";
 import { Conversation, ChatMessage, PeerProfile } from "@/types/veil";
 import { generateFingerprint, generateSafetyNumber } from "@/lib/crypto";
+import { makeId, nowMs } from "@/lib/ids";
 
 export default function VeilApp() {
   // Navigation: "welcome" | "inbox" | "chat" | "connect" | "settings"
@@ -48,6 +49,9 @@ export default function VeilApp() {
 
   // Initialize identity on mount, and handle a ?join= deep-link from a scanned QR
   useEffect(() => {
+    // Client-only initialisation: generating this during render would produce a
+    // different value on the server and trip a hydration mismatch.
+    /* eslint-disable react-hooks/set-state-in-effect */
     const fp = generateFingerprint();
     const seed = Math.random().toString(36).substring(2, 10);
     setUserFingerprint(fp);
@@ -60,6 +64,7 @@ export default function VeilApp() {
       // Clean the URL so a refresh doesn't re-trigger the join
       window.history.replaceState({}, "", window.location.pathname);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   // Disappearing messages cleanup ticker
@@ -105,7 +110,7 @@ export default function VeilApp() {
         id: "msg-2",
         senderId: "self",
         senderName: userName,
-        text: "Understood. The blue-and-white glass aesthetic is crisp and minimal.",
+        text: "Understood — the neutral, high-contrast interface is much easier to read.",
         timestamp: Date.now() - 30000,
         isSelf: true,
         status: "delivered",
@@ -151,11 +156,9 @@ export default function VeilApp() {
     setActiveConversationId(demoConvId);
   };
 
-  // Start button handler
+  // Start button handler — never seeds a fake conversation; the inbox empty
+  // state points the user at creating a real connection.
   const handleStartMessaging = () => {
-    if (conversations.length === 0) {
-      setupDemoSandbox();
-    }
     setCurrentScreen("inbox");
   };
 
@@ -172,11 +175,11 @@ export default function VeilApp() {
     const conv = conversations.find((c) => c.id === activeConversationId);
     if (!conv) return;
 
-    const now = Date.now();
+    const now = nowMs();
     const expiresAt = expiresInSeconds > 0 ? now + expiresInSeconds * 1000 : undefined;
 
     const newMsg: ChatMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: makeId("msg"),
       senderId: "self",
       senderName: userName,
       text,
@@ -282,8 +285,25 @@ export default function VeilApp() {
     );
   };
 
-  // Wipe all memory
+  // Wipe all memory — also tear down any live peer transports so nothing is
+  // left connected after the user asks for a clean slate.
   const handleClearAllMemory = () => {
+    Object.values(activeDataChannels.current).forEach((dc) => {
+      try {
+        dc.close();
+      } catch {
+        // already closed
+      }
+    });
+    Object.values(activePeerConnections.current).forEach((pc) => {
+      try {
+        pc.close();
+      } catch {
+        // already closed
+      }
+    });
+    activeDataChannels.current = {};
+    activePeerConnections.current = {};
     setConversations([]);
     setActiveConversationId(null);
     setCurrentScreen("welcome");
@@ -298,54 +318,16 @@ export default function VeilApp() {
     dataChannel?: RTCDataChannel;
     peerConnection?: RTCPeerConnection;
   }) => {
-    const newConvId = `conv-${Date.now()}`;
-
-    // Store WebRTC DataChannel handler
-    if (peerSession.dataChannel) {
-      activeDataChannels.current[newConvId] = peerSession.dataChannel;
-
-      peerSession.dataChannel.onmessage = (event) => {
-        try {
-          const parsed = JSON.parse(event.data);
-          if (parsed.type === "chat_message") {
-            const incoming: ChatMessage = {
-              ...parsed.payload,
-              isSelf: false,
-              status: "read",
-            };
-            setConversations((prev) =>
-              prev.map((c) => {
-                if (c.id === newConvId) {
-                  return {
-                    ...c,
-                    messages: [...c.messages, incoming],
-                    lastActivity: Date.now(),
-                    bytesReceived: (c.bytesReceived || 0) + incoming.text.length + 64,
-                  };
-                }
-                return c;
-              })
-            );
-          }
-        } catch (e) {
-          console.error("Failed to parse incoming DC message:", e);
-        }
-      };
-
-      peerSession.dataChannel.onclose = () => {
-        setConversations((prev) =>
-          prev.map((c) => (c.id === newConvId ? { ...c, connectionStatus: "closed" } : c))
-        );
-      };
-    }
+    const newConvId = makeId("conv");
 
     if (peerSession.peerConnection) {
       activePeerConnections.current[newConvId] = peerSession.peerConnection;
     }
 
+    const now = Date.now();
     const newConversation: Conversation = {
       id: newConvId,
-      peerId: `peer-${Date.now()}`,
+      peerId: makeId("peer"),
       peerName: peerSession.peerName,
       peerAvatarSeed: peerSession.peerName,
       peerFingerprint: peerSession.peerFingerprint,
@@ -354,17 +336,17 @@ export default function VeilApp() {
       connectionType: peerSession.connectionType,
       messages: [
         {
-          id: `welcome-${Date.now()}`,
+          id: makeId("welcome"),
           senderId: "system",
           senderName: "VEIL Protocol",
           text: `Direct peer session established with ${peerSession.peerName}. Transport is encrypted via WebRTC DTLS/SCTP.`,
-          timestamp: Date.now(),
+          timestamp: now,
           isSelf: false,
           status: "read",
         },
       ],
       unreadCount: 0,
-      lastActivity: Date.now(),
+      lastActivity: now,
       disappearingTimerSeconds: defaultTimer,
       iceTransportState: "connected",
       rttMs: 22,
@@ -373,15 +355,123 @@ export default function VeilApp() {
       bytesReceived: 1450,
     };
 
+    // Queue the conversation before wiring the channel so the first inbound
+    // frame cannot race the state update.
     setConversations((prev) => [newConversation, ...prev]);
     setActiveConversationId(newConvId);
     setCurrentScreen("chat");
+
+    const channel = peerSession.dataChannel;
+    if (!channel) return;
+    activeDataChannels.current[newConvId] = channel;
+
+    const handleData = (raw: string) => {
+      try {
+        const parsed = JSON.parse(raw);
+
+        // Peers introduce themselves over the channel so both sides see the
+        // real display name instead of an invite-code placeholder.
+        if (parsed?.type === "hello") {
+          const payload = parsed.payload ?? {};
+          const displayName =
+            typeof payload.displayName === "string" ? payload.displayName.trim().slice(0, 20) : "";
+          const fingerprint = typeof payload.fingerprint === "string" ? payload.fingerprint : "";
+          setConversations((prev) =>
+            prev.map((c) => {
+              if (c.id !== newConvId) return c;
+              const peerFingerprint = fingerprint || c.peerFingerprint;
+              const peerName = displayName || c.peerName;
+              return {
+                ...c,
+                peerName,
+                peerFingerprint,
+                peerSafetyNumber: userFingerprint
+                  ? generateSafetyNumber(userFingerprint, peerFingerprint)
+                  : c.peerSafetyNumber,
+                messages: c.messages.map((m) =>
+                  m.senderId === "system"
+                    ? {
+                        ...m,
+                        text: `Direct peer session established with ${peerName}. Transport is encrypted via WebRTC DTLS/SCTP.`,
+                      }
+                    : m
+                ),
+              };
+            })
+          );
+          return;
+        }
+
+        if (parsed?.type === "chat_message" && parsed.payload && typeof parsed.payload.text === "string") {
+          const incoming: ChatMessage = {
+            ...parsed.payload,
+            text: parsed.payload.text.slice(0, 8000),
+            isSelf: false,
+            status: "read",
+          };
+          setConversations((prev) =>
+            prev.map((c) => {
+              if (c.id === newConvId) {
+                return {
+                  ...c,
+                  messages: [...c.messages, incoming],
+                  lastActivity: Date.now(),
+                  bytesReceived: (c.bytesReceived || 0) + incoming.text.length + 64,
+                };
+              }
+              return c;
+            })
+          );
+        }
+      } catch (e) {
+        console.error("Failed to parse incoming DC message:", e);
+      }
+    };
+
+    // Hold frames that arrive before React commits the new conversation.
+    const pending: string[] = [];
+    let ready = false;
+    channel.onmessage = (event) => {
+      if (typeof event.data !== "string") return;
+      if (!ready) {
+        pending.push(event.data);
+        return;
+      }
+      handleData(event.data);
+    };
+    channel.onclose = () => {
+      setConversations((prev) =>
+        prev.map((c) => (c.id === newConvId ? { ...c, connectionStatus: "closed" } : c))
+      );
+    };
+
+    ready = true;
+    pending.splice(0).forEach(handleData);
+
+    // The remote may not have attached its handler yet, so introduce ourselves
+    // a couple of times. Messages are tiny and idempotent.
+    const hello = JSON.stringify({
+      type: "hello",
+      payload: { displayName: userName, fingerprint: userFingerprint },
+    });
+    const sendHello = () => {
+      if (channel.readyState !== "open") return;
+      try {
+        channel.send(hello);
+      } catch {
+        // channel closed between the readyState check and the send
+      }
+    };
+    sendHello();
+    // Keep introducing ourselves for a while: the remote side may not have
+    // wired up its handler yet, and a slow ICE handshake can delay its onopen.
+    [600, 1500, 3000, 6000].forEach((delay) => setTimeout(sendHello, delay));
   };
 
   const activeConv = conversations.find((c) => c.id === activeConversationId);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-50 to-blue-50 text-slate-800 flex flex-col selection:bg-sky-500 selection:text-white">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#f6f7f9] text-gray-900 selection:bg-indigo-200 selection:text-indigo-950">
       {/* Dynamic Screen View */}
       {currentScreen === "welcome" && (
         <WelcomeScreen

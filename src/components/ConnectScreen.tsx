@@ -7,16 +7,15 @@ import {
   Copy,
   Check,
   RefreshCw,
-  Share2,
   KeyRound,
   ShieldCheck,
   Radio,
   Clock,
-  ExternalLink,
   Sparkles,
 } from "lucide-react";
 import { CanvasQr } from "./CanvasQr";
 import { PeerProfile } from "@/types/veil";
+import { generateSafetyNumber } from "@/lib/crypto";
 
 interface ConnectScreenProps {
   onBack: () => void;
@@ -63,6 +62,19 @@ export function ConnectScreen({
   // Mutable mirror of sessionId so ICE handlers created before the session
   // exists can still upload candidates once it is created.
   const sessionIdRef = useRef<string>("");
+  // Latest fingerprint advertised by the joining peer, captured from polling.
+  const peerFingerprintRef = useRef<string>("");
+
+  // Once the DataChannel is open the ephemeral signaling row has served its
+  // purpose, so delete it immediately instead of waiting for the TTL.
+  const closeSignalingSession = (id: string | null) => {
+    if (!id) return;
+    void fetch("/api/signaling", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "close", sessionId: id }),
+    }).catch(() => {});
+  };
 
   // Generate Invite
   const handleCreateInvite = async () => {
@@ -153,20 +165,49 @@ export function ConnectScreen({
         }
 
         // Setup DC callbacks
-        dc.onopen = () => {
+        dc.onopen = async () => {
           setPairingStatus("paired");
           setStatusMessage("Direct WebRTC DataChannel established!");
-          // Call onSessionEstablished
-          setTimeout(() => {
-            onSessionEstablished({
-              peerName: `Peer-${data.inviteCode.slice(0, 4)}`,
-              peerFingerprint: "A91B:4F82:CE71:9042",
-              peerSafetyNumber: "4820 1934 8192",
-              connectionType: "direct-p2p",
-              dataChannel: dc,
-              peerConnection: pc,
-            });
-          }, 800);
+
+          // The poll that delivered the answer also carried the peer's
+          // fingerprint, so it is normally already cached. Only fall back to a
+          // fresh request if it is missing — awaiting here would delay wiring
+          // up the channel and could drop the peer's introductory message.
+          let remoteFingerprint = peerFingerprintRef.current;
+          if (!remoteFingerprint) {
+            try {
+              const infoRes = await fetch("/api/signaling", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  action: "poll",
+                  sessionId: data.sessionId,
+                  role: "creator",
+                }),
+              });
+              if (infoRes.ok) {
+                const info = await infoRes.json();
+                if (info?.success && typeof info.peerFingerprint === "string") {
+                  remoteFingerprint = info.peerFingerprint;
+                }
+              }
+            } catch {
+              // fall back to the placeholder below
+            }
+          }
+
+          if (!remoteFingerprint) remoteFingerprint = "0000:0000:0000:0000";
+
+          onSessionEstablished({
+            peerName: `Peer ${data.inviteCode.slice(0, 4)}`,
+            peerFingerprint: remoteFingerprint,
+            peerSafetyNumber: generateSafetyNumber(myProfile.fingerprint, remoteFingerprint),
+            connectionType: "direct-p2p",
+            dataChannel: dc,
+            peerConnection: pc,
+          });
+
+          closeSignalingSession(data.sessionId);
         };
 
         // Do not sit on "Exchanging keys..." forever if the peer never connects
@@ -206,8 +247,22 @@ export function ConnectScreen({
           }),
         });
 
+        if (res.status === 404) {
+          clearInterval(interval);
+          peerConnection?.close();
+          setPairingStatus("failed");
+          setStatusMessage("This invite expired or was closed. Create a new invite to try again.");
+          return;
+        }
+
         const data = await res.json();
-        if (data.success && data.answerSdp && peerConnection) {
+        if (!data.success) return;
+
+        if (typeof data.peerFingerprint === "string") {
+          peerFingerprintRef.current = data.peerFingerprint;
+        }
+
+        if (data.answerSdp && peerConnection) {
           if (peerConnection.signalingState === "have-local-offer") {
             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answerSdp));
             setStatusMessage("Exchanging direct peer cryptographic keys...");
@@ -287,7 +342,7 @@ export function ConnectScreen({
   // Join Existing Invite
   const joinWithCode = async (rawCode: string) => {
     const code = rawCode.trim().toUpperCase();
-    if (!code) return;
+    if (!code || isJoining) return;
     setIsJoining(true);
     setJoinError(null);
 
@@ -316,18 +371,26 @@ export function ConnectScreen({
         ],
       });
 
+      const creatorFingerprint =
+        typeof data.creatorFingerprint === "string" && data.creatorFingerprint
+          ? data.creatorFingerprint
+          : "0000:0000:0000:0000";
+
       let receivedChannel: RTCDataChannel | null = null;
       pc.ondatachannel = (ev) => {
         receivedChannel = ev.channel;
         receivedChannel.onopen = () => {
           onSessionEstablished({
-            peerName: `Peer-${code}`,
-            peerFingerprint: data.creatorFingerprint || "4B89:9F01:7712:2018",
-            peerSafetyNumber: data.creatorSafetyNumber || "7291 4018 5590",
+            peerName: `Peer ${code.slice(0, 4)}`,
+            peerFingerprint: creatorFingerprint,
+            // Both sides derive this from the same fingerprint pair, so the
+            // numbers actually match when read aloud.
+            peerSafetyNumber: generateSafetyNumber(myProfile.fingerprint, creatorFingerprint),
             connectionType: "direct-p2p",
             dataChannel: receivedChannel || undefined,
             peerConnection: pc,
           });
+          closeSignalingSession(data.sessionId);
         };
       };
 
@@ -376,15 +439,15 @@ export function ConnectScreen({
           return;
         }
         setJoinError(
-          "Direct connection could not be established within 8s. Your network may block P2P traffic. " +
+          "Direct connection could not be established within 15s. Your network may block P2P traffic. " +
             "Ask your peer to retry, or use Sandbox Mode to explore the app."
         );
         setStatusMessage("Handshake incomplete — no data channel opened.");
-      }, 8000);
+        setIsJoining(false);
+      }, 15000);
     } catch (err: unknown) {
       console.error(err);
       setJoinError("Connection handshake timed out or network blocked direct P2P. Try Sandbox Mode.");
-    } finally {
       setIsJoining(false);
     }
   };
@@ -406,6 +469,25 @@ export function ConnectScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialJoinCode]);
 
+  const handleCancel = () => {
+    peerConnection?.close();
+    closeSignalingSession(sessionId || joinSessionId);
+    onBack();
+  };
+
+  const handleNewInvite = () => {
+    peerConnection?.close();
+    setPeerConnection(null);
+    sessionIdRef.current = "";
+    peerFingerprintRef.current = "";
+    setInviteCode("");
+    setSessionId("");
+    setPairingStatus("idle");
+    setStatusMessage("Ready to create invitation.");
+    setTimeLeft(600);
+    void handleCreateInvite();
+  };
+
   const handleCopyCode = () => {
     if (!inviteCode) return;
     navigator.clipboard.writeText(inviteCode);
@@ -426,201 +508,212 @@ export function ConnectScreen({
       ? `${window.location.origin}/?join=${inviteCode}`
       : inviteCode;
 
+  const openSandbox = () => {
+    onSessionEstablished({
+      peerName: "Alex (Sandbox)",
+      peerFingerprint: "F7A1:88B2:3490:0021",
+      peerSafetyNumber: "9182 3019 4482",
+      connectionType: "demo-simulation",
+    });
+  };
+
   return (
-    <div className="flex flex-col h-full max-w-xl mx-auto w-full p-4 sm:p-6">
-      {/* Top Header */}
-      <div className="glass-panel rounded-3xl p-4 sm:p-5 mb-4 shadow-lg border border-white/90 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-2 rounded-2xl bg-white/70 hover:bg-white text-slate-600 hover:text-slate-900 border border-sky-100 transition-colors shadow-sm"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <div>
-            <h2 className="text-base font-bold text-slate-800">Connect Privately</h2>
-            <p className="text-xs text-slate-500">Direct WebRTC DataChannel Pairing</p>
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="app-header shrink-0">
+        <div className="mx-auto flex min-h-16 w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <button onClick={handleCancel} className="icon-btn" aria-label="Back to inbox">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div>
+              <h1 className="text-sm font-semibold text-gray-900">Connect</h1>
+              <p className="text-[11px] text-gray-500">Direct WebRTC pairing</p>
+            </div>
+          </div>
+
+          <div className="segmented">
+            <button data-active={activeTab === "create"} onClick={() => setActiveTab("create")}>
+              Create invite
+            </button>
+            <button data-active={activeTab === "join"} onClick={() => setActiveTab("join")}>
+              Enter code
+            </button>
           </div>
         </div>
+      </header>
 
-        {/* Tab switch */}
-        <div className="bg-sky-100/60 p-1 rounded-2xl flex items-center text-xs font-semibold">
-          <button
-            onClick={() => setActiveTab("create")}
-            className={`px-3 py-1.5 rounded-xl transition-all ${
-              activeTab === "create" ? "bg-white text-sky-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Create Invite
-          </button>
-          <button
-            onClick={() => setActiveTab("join")}
-            className={`px-3 py-1.5 rounded-xl transition-all ${
-              activeTab === "join" ? "bg-white text-sky-700 shadow-sm" : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            Enter Code
-          </button>
-        </div>
-      </div>
-
-      {/* Main Card */}
-      <div className="flex-1 glass-panel rounded-3xl p-6 sm:p-8 shadow-xl border border-white/90 flex flex-col justify-between overflow-y-auto">
-        {activeTab === "create" ? (
-          <div className="flex flex-col items-center text-center">
-            {inviteCode ? (
-              <>
-                <div className="mb-2">
-                  <CanvasQr text={qrPayload} size={190} />
-                </div>
-
-                <div className="mt-2 flex items-center gap-2">
-                  <div className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200/80 font-mono text-2xl font-extrabold tracking-widest text-sky-950 shadow-sm">
-                    {inviteCode}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+          <div className="panel overflow-hidden">
+            {activeTab === "create" ? (
+              inviteCode ? (
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="overline">Step 1 · Invite ready</div>
+                      <h2 className="mt-1 text-base font-semibold text-gray-900">
+                        Share this code with your peer
+                      </h2>
+                    </div>
+                    <div
+                      className={`flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium ${
+                        pairingStatus === "failed"
+                          ? "border-rose-200 bg-rose-50 text-rose-700"
+                          : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      <span
+                        className={`status-dot ${
+                          pairingStatus === "failed" ? "bg-rose-500" : "bg-emerald-500 status-dot-pulse"
+                        }`}
+                      />
+                      {pairingStatus === "failed" ? "Invite closed" : "Listening for peer"}
+                    </div>
                   </div>
-                  <button
-                    onClick={handleCopyCode}
-                    className="p-3 rounded-2xl bg-white/80 hover:bg-white border border-sky-200 text-sky-700 shadow-sm transition-all"
-                    title="Copy invite code"
-                  >
-                    {copied ? <Check className="w-5 h-5 text-emerald-600" /> : <Copy className="w-5 h-5" />}
-                  </button>
-                </div>
 
-                <div className="mt-3 flex items-center gap-2 text-xs font-medium text-slate-500">
-                  <Clock className="w-3.5 h-3.5 text-sky-600" />
-                  <span>Expires in: {formatMinutes(timeLeft)}</span>
-                </div>
+                  <div className="mt-5 grid gap-5 sm:grid-cols-[auto_1fr] sm:items-center">
+                    <CanvasQr text={qrPayload} size={168} />
 
-                {/* Status Indicator */}
-                <div className="mt-4 p-3 rounded-2xl bg-sky-50/70 border border-sky-100/90 text-xs text-sky-900 max-w-sm flex items-center gap-2.5">
-                  <div className="w-2.5 h-2.5 rounded-full bg-sky-500 animate-ping" />
-                  <span className="text-left leading-tight">{statusMessage}</span>
-                </div>
+                    <div className="min-w-0 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-center font-mono text-2xl font-semibold tracking-[0.2em] text-gray-900">
+                          {inviteCode}
+                        </div>
+                        <button
+                          onClick={handleCopyCode}
+                          className="icon-btn h-[46px] w-[46px]"
+                          title="Copy invite code"
+                        >
+                          {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                      </div>
 
-                {/* Instant Sandbox Pairing Button */}
-                <div className="mt-5 pt-4 border-t border-sky-100 w-full text-center">
-                  <p className="text-[11px] text-slate-500 mb-2">
-                    Testing on a single device or simulated environment?
+                      <div className="flex items-center justify-between text-[11px] text-gray-500">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="h-3 w-3" />
+                          Expires in
+                          <span className="font-mono font-medium text-gray-700">{formatMinutes(timeLeft)}</span>
+                        </span>
+                        <span className="font-mono">single use</span>
+                      </div>
+
+                      <p className="text-[11px] leading-relaxed text-gray-500">{statusMessage}</p>
+
+                      {pairingStatus === "failed" && (
+                        <button onClick={handleNewInvite} className="btn btn-secondary h-9">
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          Create a new invite
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 text-center sm:p-10">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500">
+                    <QrCode className="h-6 w-6" />
+                  </div>
+                  <h2 className="mt-4 text-base font-semibold text-gray-900">Create a single-use invite</h2>
+                  <p className="mx-auto mt-1 max-w-sm text-xs leading-relaxed text-gray-500">
+                    Generates an ephemeral WebRTC offer. Share the code or QR with your peer — the
+                    handshake expires after ten minutes.
                   </p>
-                  <button
-                    onClick={() => {
-                      onSessionEstablished({
-                        peerName: "Alex (Simulated P2P)",
-                        peerFingerprint: "F7A1:88B2:3490:0021",
-                        peerSafetyNumber: "9182 3019 4482",
-                        connectionType: "demo-simulation",
-                      });
-                    }}
-                    className="px-4 py-2 rounded-xl bg-white/80 hover:bg-white text-xs font-semibold text-sky-700 border border-sky-200 shadow-sm transition-all flex items-center justify-center gap-1.5 mx-auto"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-sky-500" />
-                    <span>Instant Demo Peer Connection</span>
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="py-8 flex flex-col items-center">
-                <div className="w-16 h-16 rounded-3xl bg-sky-50 text-sky-600 flex items-center justify-center mb-4 shadow-inner">
-                  <QrCode className="w-8 h-8" />
-                </div>
-                <h3 className="text-base font-bold text-slate-800">Generate Single-Use Invite</h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-xs leading-relaxed">
-                  Creates an ephemeral WebRTC offer. Share the code or QR with your peer. Handshake expires after 10
-                  minutes.
-                </p>
 
-                <button
-                  onClick={handleCreateInvite}
-                  disabled={isGenerating}
-                  className="mt-6 px-6 py-3 rounded-2xl btn-electric text-white text-sm font-semibold shadow-md flex items-center gap-2 cursor-pointer"
-                >
-                  {isGenerating ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Creating WebRTC Session...</span>
-                    </>
-                  ) : (
-                    <>
-                      <KeyRound className="w-4 h-4" />
-                      <span>Create Temporary Invite</span>
-                    </>
+                  <button
+                    onClick={handleCreateInvite}
+                    disabled={isGenerating}
+                    className="btn btn-primary mt-6 h-10 px-5"
+                  >
+                    {isGenerating ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Creating session…
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound className="h-4 w-4" />
+                        Create invite
+                      </>
+                    )}
+                  </button>
+                  <p className="mt-3 text-[11px] text-gray-400">No account. No history. One peer only.</p>
+                </div>
+              )
+            ) : (
+              <div className="p-6 sm:p-8">
+                <div className="text-center">
+                  <h2 className="text-base font-semibold text-gray-900">Enter your peer&apos;s code</h2>
+                  <p className="mt-1 text-xs text-gray-500">Six characters, provided by the host.</p>
+                </div>
+
+                <form onSubmit={handleJoinInvite} className="mx-auto mt-5 max-w-sm space-y-3">
+                  <input
+                    type="text"
+                    maxLength={8}
+                    placeholder="7K4MZP"
+                    value={inputCode}
+                    onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="field h-12 px-4 text-center font-mono text-xl font-semibold uppercase tracking-[0.25em]"
+                  />
+
+                  {joinError && (
+                    <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs leading-relaxed text-rose-700">
+                      {joinError}
+                    </div>
                   )}
-                </button>
+
+                  <button
+                    type="submit"
+                    disabled={isJoining || !inputCode.trim()}
+                    className="btn btn-primary h-11 w-full"
+                  >
+                    {isJoining ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        Connecting…
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="h-4 w-4" />
+                        Connect
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="mx-auto mt-4 flex max-w-sm items-start gap-2 rounded-lg border border-amber-200/70 bg-amber-50/60 px-3 py-2 text-[11px] leading-relaxed text-amber-800">
+                  <Radio className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                  Keep this tab open — the direct channel only exists while both browsers are
+                  connected.
+                </div>
               </div>
             )}
+
+            <div className="flex items-start gap-2 border-t border-gray-100 bg-gray-50/60 px-5 py-2.5 text-[11px] leading-relaxed text-gray-500 sm:px-6">
+              <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+              <p>
+                Only ephemeral SDP handshakes pass through signaling. Message content travels
+                browser to browser and is never recorded.
+              </p>
+            </div>
           </div>
-        ) : (
-          /* Join Existing Invite */
-          <div className="py-4">
-            <h3 className="text-base font-bold text-slate-800 text-center">Enter Peer&apos;s Invitation Code</h3>
-            <p className="text-xs text-slate-500 text-center mt-1 max-w-xs mx-auto leading-relaxed">
-              Type the 6-character code provided by your peer to initialize direct transport.
-            </p>
 
-            <form onSubmit={handleJoinInvite} className="mt-6 max-w-sm mx-auto space-y-4">
+          <div className="panel mt-4 p-4 sm:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <input
-                  type="text"
-                  maxLength={8}
-                  placeholder="e.g. 7K4MZP"
-                  value={inputCode}
-                  onChange={(e) => setInputCode(e.target.value.toUpperCase())}
-                  className="w-full text-center py-3 px-4 glass-input rounded-2xl text-xl font-mono font-bold tracking-widest text-slate-800 uppercase focus:outline-none"
-                />
+                <p className="text-xs font-medium text-gray-900">Testing on one device?</p>
+                <p className="mt-0.5 text-[11px] text-gray-500">
+                  Open a simulated peer to explore the interface.
+                </p>
               </div>
-
-              {joinError && (
-                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
-                  {joinError}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={isJoining || !inputCode.trim()}
-                className="w-full py-3.5 rounded-2xl btn-electric text-white text-sm font-semibold shadow-md flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
-              >
-                {isJoining ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Connecting P2P DataChannel...</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="w-4 h-4" />
-                    <span>Connect & Verify</span>
-                  </>
-                )}
-              </button>
-            </form>
-
-            <div className="mt-8 pt-4 border-t border-sky-100 text-center">
-              <span className="text-xs text-slate-400">Want to simulate without another person?</span>
-              <button
-                onClick={() => {
-                  onSessionEstablished({
-                    peerName: "Elena (Simulated Peer)",
-                    peerFingerprint: "C392:8491:0283:1109",
-                    peerSafetyNumber: "1092 8472 9940",
-                    connectionType: "demo-simulation",
-                  });
-                }}
-                className="mt-2 block mx-auto text-xs font-semibold text-sky-700 hover:underline"
-              >
-                Open Demo Peer Sandbox &rarr;
+              <button onClick={openSandbox} className="btn btn-secondary h-9">
+                <Sparkles className="h-3.5 w-3.5" />
+                Open sandbox peer
               </button>
             </div>
           </div>
-        )}
-
-        {/* Security transparency footer */}
-        <div className="mt-6 pt-4 border-t border-sky-100/80 flex items-start gap-2 text-[11px] text-slate-500">
-          <ShieldCheck className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
-          <p>
-            VEIL signaling servers never see, forward, or record message contents. Only ephemeral SDP handshakes are
-            exchanged to link browsers directly.
-          </p>
         </div>
       </div>
     </div>

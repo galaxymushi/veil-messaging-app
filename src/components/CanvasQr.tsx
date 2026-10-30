@@ -17,11 +17,11 @@ interface CanvasQrProps {
  */
 export function CanvasQr({ text, size = 180 }: CanvasQrProps) {
   return (
-    <div className="p-3 bg-white rounded-2xl shadow-inner border border-sky-100 inline-block">
+    <div className="inline-block rounded-xl border border-gray-200 bg-white p-3">
       <span
         role="img"
         aria-label="QR code containing this invitation link. Scan it with your peer's camera to connect."
-        className="rounded-xl overflow-hidden block leading-none"
+        className="block overflow-hidden rounded-lg leading-none"
       >
         <QRCodeCanvas
           value={text}
@@ -29,7 +29,7 @@ export function CanvasQr({ text, size = 180 }: CanvasQrProps) {
           level="M"
           marginSize={1}
           bgColor="#ffffff"
-          fgColor="#0369a1"
+          fgColor="#111827"
         />
       </span>
     </div>

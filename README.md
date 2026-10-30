@@ -144,7 +144,7 @@ operator rather than being made silently.
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/galaxymushizo-netizen/veil-messaging-app.git
+git clone https://github.com/galaxymushi/veil-messaging-app.git
 cd veil-messaging-app
 npm install
 ```
@@ -222,7 +222,11 @@ It returns JSON and uses HTTP status codes for errors.
 | `close` | Delete the session immediately | `sessionId` | — |
 
 Errors: `400` malformed request · `404` unknown session or code ·
-`410` invite code expired · `500` internal error.
+`409` invite already used · `410` invite code expired · `503` database not
+configured · `500` internal error.
+
+Invite codes are generated on the server with a CSPRNG. A code is single-use:
+once a peer submits an answer, further joins are rejected with `409`.
 
 `GET /api/health` returns `200 {"ok":true}` for liveness checks.
 
@@ -290,7 +294,7 @@ npm run typecheck
 npm run build
 ```
 
-Bug reports and feature requests go in [Issues](https://github.com/galaxymushizo-netizen/veil-messaging-app/issues).
+Bug reports and feature requests go in [Issues](https://github.com/galaxymushi/veil-messaging-app/issues).
 
 ---
 

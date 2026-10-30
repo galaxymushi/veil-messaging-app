@@ -4,21 +4,18 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   Shield,
-  ShieldAlert,
   Clock,
   Trash2,
   Send,
   Sparkles,
   Wifi,
-  WifiOff,
   Activity,
   Smile,
-  AlertCircle,
   Check,
   CheckCheck,
   Flame,
 } from "lucide-react";
-import { Conversation, ChatMessage } from "@/types/veil";
+import { Conversation } from "@/types/veil";
 
 interface PrivateChatProps {
   conversation: Conversation;
@@ -40,6 +37,13 @@ const TIMER_OPTIONS = [
 
 const QUICK_EMOJIS = ["🔒", "✨", "👋", "🛡️", "🔥", "🤝", "🚀", "⚡"];
 
+function timerLabel(seconds: number) {
+  if (seconds === 0) return "Timer";
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${seconds / 60}m`;
+  return "1h";
+}
+
 export function PrivateChat({
   conversation,
   onBack,
@@ -55,12 +59,8 @@ export function PrivateChat({
   const [showTimerMenu, setShowTimerMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [conversation.messages]);
 
   const handleSend = (e?: React.FormEvent) => {
@@ -73,259 +73,257 @@ export function PrivateChat({
   const isConnected = conversation.connectionStatus === "connected";
 
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto w-full p-2 sm:p-4 md:p-6">
-      {/* Top Chat Bar */}
-      <div className="glass-panel rounded-3xl p-3.5 sm:p-4 mb-3 shadow-lg border border-white/90 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-          <button
-            onClick={onBack}
-            className="p-2 rounded-2xl bg-white/70 hover:bg-white text-slate-600 hover:text-slate-900 border border-sky-100 transition-colors shadow-sm"
-            aria-label="Back to conversations"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
+    <div className="flex h-full min-h-0 flex-col">
+      <header className="app-header shrink-0">
+        <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-2 px-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <button onClick={onBack} className="icon-btn" aria-label="Back to conversations">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
 
-          <div className="relative">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-sky-400 to-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-              {conversation.peerName.slice(0, 1).toUpperCase()}
+            <div className="relative shrink-0">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-sm font-semibold text-gray-700">
+                {conversation.peerName.slice(0, 1).toUpperCase()}
+              </div>
+              <span
+                className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white ${
+                  isConnected ? "bg-emerald-500" : "bg-amber-400 status-dot-pulse"
+                }`}
+              />
             </div>
-            <span
-              className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
-                isConnected ? "bg-emerald-500" : "bg-amber-400 animate-pulse"
-              }`}
-            />
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="truncate text-sm font-semibold text-gray-900">{conversation.peerName}</h1>
+                {conversation.connectionType === "demo-simulation" && (
+                  <span className="hidden rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-gray-500 sm:inline">
+                    Sandbox
+                  </span>
+                )}
+              </div>
+              <div className="mt-0.5 flex items-center gap-2 whitespace-nowrap text-[11px] text-gray-500">
+                <span className="flex items-center gap-1">
+                  {isConnected ? (
+                    <>
+                      <Wifi className="h-3 w-3 text-emerald-600" />
+                      <span className="font-medium text-emerald-700">Connected</span>
+                    </>
+                  ) : (
+                    <>
+                      <Activity className="h-3 w-3 animate-spin text-amber-600" />
+                      <span className="font-medium text-amber-700">Handshaking</span>
+                    </>
+                  )}
+                </span>
+                <span className="text-gray-300">·</span>
+                <button
+                  onClick={onOpenSafetyNumber}
+                  aria-label={isPeerSafetyVerified ? "Verified identity" : "Verify identity"}
+                  title={isPeerSafetyVerified ? "Verified identity" : "Verify identity"}
+                  className={`flex items-center gap-1 font-medium underline-offset-2 hover:underline ${
+                    isPeerSafetyVerified ? "text-emerald-700" : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  <Shield className="h-3 w-3" />
+                  <span className="hidden sm:inline">{isPeerSafetyVerified ? "Verified" : "Verify identity"}</span>
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h3 className="text-sm font-bold text-slate-800 truncate">{conversation.peerName}</h3>
-              {conversation.connectionType === "demo-simulation" && (
-                <span className="text-[9px] uppercase tracking-wider font-semibold bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded border border-sky-100">
-                  Demo Peer
+          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="relative">
+              <button
+                onClick={() => setShowTimerMenu(!showTimerMenu)}
+                className={`btn h-9 border px-2.5 ${
+                  conversation.disappearingTimerSeconds > 0
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+                title="Disappearing messages timer"
+              >
+                <Clock className="h-4 w-4" />
+                <span className="hidden text-[11px] sm:inline">
+                  {timerLabel(conversation.disappearingTimerSeconds)}
                 </span>
+              </button>
+
+              {showTimerMenu && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setShowTimerMenu(false)} />
+                  <div className="absolute right-0 z-30 mt-2 w-52 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg veil-fade-in">
+                    <div className="overline px-2 py-1.5">Disappearing messages</div>
+                    {TIMER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.seconds}
+                        onClick={() => {
+                          onChangeTimer(opt.seconds);
+                          setShowTimerMenu(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs transition-colors ${
+                          conversation.disappearingTimerSeconds === opt.seconds
+                            ? "bg-indigo-50 font-medium text-indigo-700"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        }`}
+                      >
+                        <span>{opt.label === "Off" ? "Off (manual clear)" : `After ${opt.label}`}</span>
+                        {conversation.disappearingTimerSeconds === opt.seconds && (
+                          <Check className="h-3.5 w-3.5 text-indigo-600" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
 
-            <div className="flex items-center gap-2 text-[11px] text-slate-500">
-              <span className="flex items-center gap-1">
-                {isConnected ? (
-                  <span className="text-emerald-600 font-medium flex items-center gap-0.5">
-                    <Wifi className="w-3 h-3" /> P2P Active
-                  </span>
-                ) : (
-                  <span className="text-amber-600 font-medium flex items-center gap-0.5">
-                    <Activity className="w-3 h-3 animate-spin" /> Handshaking...
-                  </span>
-                )}
-              </span>
-              <span>&bull;</span>
-              <button
-                onClick={onOpenSafetyNumber}
-                className="hover:text-sky-700 font-mono text-[10px] flex items-center gap-1 underline underline-offset-2 decoration-sky-300"
-              >
-                {isPeerSafetyVerified ? (
-                  <span className="text-emerald-600 font-sans font-medium flex items-center gap-0.5">
-                    <Shield className="w-2.5 h-2.5" /> Verified
-                  </span>
-                ) : (
-                  <span>Verify Identity</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Controls */}
-        <div className="flex items-center gap-1.5">
-          {/* Disappearing timer selector */}
-          <div className="relative">
-            <button
-              onClick={() => setShowTimerMenu(!showTimerMenu)}
-              className={`p-2 rounded-2xl border transition-all text-xs flex items-center gap-1 shadow-sm ${
-                conversation.disappearingTimerSeconds > 0
-                  ? "bg-sky-50 border-sky-300 text-sky-700 font-semibold"
-                  : "bg-white/70 border-sky-100 text-slate-600 hover:bg-white"
-              }`}
-              title="Disappearing messages timer"
-            >
-              <Clock className="w-4 h-4 text-sky-600" />
-              <span className="text-[11px] hidden sm:inline">
-                {conversation.disappearingTimerSeconds === 0
-                  ? "Timer"
-                  : conversation.disappearingTimerSeconds < 60
-                  ? `${conversation.disappearingTimerSeconds}s`
-                  : conversation.disappearingTimerSeconds < 3600
-                  ? `${conversation.disappearingTimerSeconds / 60}m`
-                  : "1h"}
-              </span>
+            <button onClick={onOpenDiagnostics} className="icon-btn" title="Connection diagnostics">
+              <Activity className="h-4 w-4" />
             </button>
 
-            {showTimerMenu && (
-              <div className="absolute right-0 mt-2 w-44 glass-panel rounded-2xl p-2 shadow-xl border border-white/90 z-30">
-                <div className="text-[10px] uppercase font-bold text-slate-400 px-2 py-1">Disappearing Messages</div>
-                {TIMER_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.seconds}
-                    onClick={() => {
-                      onChangeTimer(opt.seconds);
-                      setShowTimerMenu(false);
-                    }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors flex items-center justify-between ${
-                      conversation.disappearingTimerSeconds === opt.seconds
-                        ? "bg-sky-100/70 text-sky-800"
-                        : "text-slate-700 hover:bg-white/80"
-                    }`}
-                  >
-                    <span>{opt.label === "Off" ? "Off (Manual Clear)" : `Disappear after ${opt.label}`}</span>
-                    {conversation.disappearingTimerSeconds === opt.seconds && <Check className="w-3.5 h-3.5 text-sky-600" />}
-                  </button>
-                ))}
-              </div>
-            )}
+            <button onClick={onClearChat} className="icon-btn icon-btn-danger" title="Wipe chat memory">
+              <Trash2 className="h-4 w-4" />
+            </button>
           </div>
-
-          {/* Diagnostics Button */}
-          <button
-            onClick={onOpenDiagnostics}
-            className="p-2 rounded-2xl bg-white/70 hover:bg-white text-slate-600 hover:text-sky-600 border border-sky-100 transition-colors shadow-sm"
-            title="Inspect P2P WebRTC & Encryption Diagnostics"
-          >
-            <Activity className="w-4 h-4" />
-          </button>
-
-          {/* Clear chat button */}
-          <button
-            onClick={onClearChat}
-            className="p-2 rounded-2xl bg-white/70 hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-sky-100 transition-colors shadow-sm"
-            title="Wipe volatile chat memory"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
         </div>
-      </div>
+      </header>
 
-      {/* Disappearing Timer Banner (if enabled) */}
       {conversation.disappearingTimerSeconds > 0 && (
-        <div className="mb-2 px-3 py-1.5 rounded-xl bg-sky-50/80 border border-sky-200/50 flex items-center justify-between text-xs text-sky-800 shadow-sm animate-in fade-in">
-          <div className="flex items-center gap-1.5">
-            <Flame className="w-3.5 h-3.5 text-sky-600" />
-            <span>
-              Disappearing mode active: Messages self-destruct {conversation.disappearingTimerSeconds}s after receipt.
+        <div className="shrink-0 border-b border-amber-100 bg-amber-50/70">
+          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-1.5 text-[11px] text-amber-800 sm:px-6">
+            <span className="flex items-center gap-1.5">
+              <Flame className="h-3.5 w-3.5 text-amber-600" />
+              Disappearing mode: messages are removed {timerLabel(conversation.disappearingTimerSeconds)} after receipt.
             </span>
+            <span className="hidden font-mono text-[10px] text-amber-600/80 sm:inline">RAM purge</span>
           </div>
-          <span className="text-[10px] text-sky-600/80 font-mono">RAM purged</span>
         </div>
       )}
 
-      {/* Messages Scroll Area */}
-      <div className="flex-1 overflow-y-auto glass-panel rounded-3xl p-4 sm:p-6 mb-3 shadow-inner border border-white/80 space-y-3.5">
-        {/* Security Watermark Banner */}
-        <div className="max-w-md mx-auto p-3.5 rounded-2xl bg-white/60 border border-sky-100 text-center text-xs text-slate-500 shadow-sm">
-          <div className="flex items-center justify-center gap-1.5 text-slate-700 font-semibold mb-1">
-            <Shield className="w-3.5 h-3.5 text-sky-600" />
-            <span>End-to-End Transport Security (DTLS/SCTP)</span>
+      <div className="min-h-0 flex-1 overflow-y-auto bg-[#f6f7f9]">
+        <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col px-4 py-5 sm:px-6">
+          <div className="mb-5 flex items-start gap-2 rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2.5 text-[11px] leading-relaxed text-gray-500">
+            <Shield className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-400" />
+            <p>
+              Direct peer-to-peer channel protected by DTLS/SCTP. Messages never reach a chat
+              database. Deletion cannot erase screenshots already taken by the recipient.
+            </p>
           </div>
-          <p className="text-[11px] leading-relaxed">
-            Direct peer-to-peer connection. Messages never touch central chat databases. Note: Message deletion cannot
-            wipe screenshots or copies already captured by the recipient.
-          </p>
-        </div>
 
-        {conversation.messages.length === 0 ? (
-          <div className="h-40 flex flex-col items-center justify-center text-center text-slate-400 text-xs">
-            <Sparkles className="w-6 h-6 text-sky-400 mb-2 opacity-60" />
-            <p>No messages yet.</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Send a message to initiate direct P2P exchange.</p>
-          </div>
-        ) : (
-          conversation.messages.map((msg) => {
-            return (
-              <div
-                key={msg.id}
-                className={`flex flex-col ${msg.isSelf ? "items-end" : "items-start"} animate-in fade-in-50 duration-200`}
-              >
-                <div
-                  className={`max-w-[85%] sm:max-w-md px-4 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed relative ${
-                    msg.isSelf
-                      ? "btn-electric text-white rounded-br-xs"
-                      : "bg-white/85 text-slate-800 border border-sky-100/90 rounded-bl-xs shadow-sky-900/5"
-                  }`}
-                >
-                  <p className="break-words select-text">{msg.text}</p>
+          {conversation.messages.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center py-16 text-center">
+              <Sparkles className="mb-2 h-5 w-5 text-gray-300" />
+              <p className="text-sm font-medium text-gray-600">No messages yet</p>
+              <p className="mt-1 text-xs text-gray-400">Send a message to start the direct exchange.</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {conversation.messages.map((msg) => {
+                const isSystem = msg.senderId === "system";
+                if (isSystem) {
+                  return (
+                    <div key={msg.id} className="my-2 flex justify-center">
+                      <p className="max-w-md text-center text-[10.5px] leading-relaxed text-gray-400">
+                        {msg.text}
+                      </p>
+                    </div>
+                  );
+                }
 
+                return (
                   <div
-                    className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] font-mono ${
-                      msg.isSelf ? "text-sky-100/80" : "text-slate-400"
-                    }`}
+                    key={msg.id}
+                    className={`flex flex-col ${msg.isSelf ? "items-end" : "items-start"} veil-fade-in`}
                   >
-                    {msg.expiresInSeconds ? (
-                      <span className="flex items-center gap-0.5">
-                        <Flame className="w-2.5 h-2.5 text-amber-300" />
-                        {msg.expiresInSeconds}s
-                      </span>
-                    ) : null}
-                    <span>
-                      {new Date(msg.timestamp).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                    {msg.isSelf && <CheckCheck className="w-3 h-3 text-sky-200" />}
+                    <div
+                      className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed shadow-sm sm:max-w-[72%] ${
+                        msg.isSelf
+                          ? "rounded-br-md bg-indigo-600 text-white"
+                          : "rounded-bl-md border border-gray-200 bg-white text-gray-800"
+                      }`}
+                    >
+                      <p className="select-text whitespace-pre-wrap break-words">{msg.text}</p>
+                      <div
+                        className={`mt-1 flex items-center justify-end gap-1.5 font-mono text-[9.5px] ${
+                          msg.isSelf ? "text-indigo-200" : "text-gray-400"
+                        }`}
+                      >
+                        {msg.expiresInSeconds ? (
+                          <span className="flex items-center gap-0.5">
+                            <Flame className="h-2.5 w-2.5" />
+                            {msg.expiresInSeconds}s
+                          </span>
+                        ) : null}
+                        <span>
+                          {new Date(msg.timestamp).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        {msg.isSelf && <CheckCheck className="h-3 w-3 text-indigo-200" />}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-        <div ref={messagesEndRef} />
+                );
+              })}
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      {/* Quick Emoji Shelf */}
       {showEmojiPicker && (
-        <div className="mb-2 p-2 glass-panel rounded-2xl border border-white/90 flex items-center gap-2 overflow-x-auto">
-          {QUICK_EMOJIS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => {
-                setInputText((prev) => prev + emoji);
-                setShowEmojiPicker(false);
-              }}
-              className="text-lg p-1.5 hover:bg-white/80 rounded-xl transition-transform hover:scale-125"
-            >
-              {emoji}
-            </button>
-          ))}
+        <div className="shrink-0 border-t border-gray-200 bg-white">
+          <div className="mx-auto flex max-w-3xl items-center gap-1 overflow-x-auto px-4 py-1.5 sm:px-6">
+            {QUICK_EMOJIS.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                onClick={() => {
+                  setInputText((prev) => prev + emoji);
+                  setShowEmojiPicker(false);
+                }}
+                className="rounded-lg p-1.5 text-lg transition-colors hover:bg-gray-100"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Input Bar */}
-      <form onSubmit={handleSend} className="glass-panel rounded-3xl p-2 sm:p-2.5 shadow-lg border border-white/90 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className="p-2 rounded-2xl text-slate-400 hover:text-sky-600 hover:bg-white/80 transition-colors"
-          title="Insert Privacy Emoji"
+      <div className="shrink-0 border-t border-gray-200 bg-white">
+        <form
+          onSubmit={handleSend}
+          className="mx-auto flex w-full max-w-3xl items-center gap-2 px-4 py-3 sm:px-6"
         >
-          <Smile className="w-5 h-5" />
-        </button>
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+            className="btn btn-ghost h-10 w-10 shrink-0 p-0"
+            title="Insert emoji"
+          >
+            <Smile className="h-5 w-5" />
+          </button>
 
-        <input
-          type="text"
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          placeholder={`Message ${conversation.peerName} securely...`}
-          className="flex-1 bg-transparent px-2 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
-        />
+          <input
+            type="text"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            placeholder={`Message ${conversation.peerName}…`}
+            className="field h-10 flex-1 px-3.5 text-sm"
+          />
 
-        <button
-          type="submit"
-          disabled={!inputText.trim()}
-          className="btn-electric p-2.5 rounded-2xl text-white shadow-md disabled:opacity-40 disabled:pointer-events-none cursor-pointer transition-all"
-        >
-          <Send className="w-4 h-4" />
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={!inputText.trim()}
+            className="btn btn-primary h-10 w-10 shrink-0 p-0"
+            aria-label="Send message"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

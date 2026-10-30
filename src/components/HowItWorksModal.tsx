@@ -27,57 +27,48 @@ export function HowItWorksModal({ isOpen, onClose }: HowItWorksModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
-      <div className="relative w-full max-w-xl glass-panel rounded-3xl p-6 sm:p-7 shadow-2xl border border-white/90 animate-in fade-in zoom-in-95 duration-200 max-h-[85vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-start justify-between shrink-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+      <div className="veil-fade-in flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
           <div>
-            <h3 className="text-lg font-bold text-slate-800">How it works</h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="text-sm font-semibold text-gray-900">How it works</h2>
+            <p className="mt-0.5 text-[11px] text-gray-500">
               Where your messages travel — and where they don&apos;t.
             </p>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="w-8 h-8 -mr-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors shrink-0"
-          >
-            <X className="w-4 h-4" />
+          <button onClick={onClose} className="icon-btn -mr-1 h-8 w-8" aria-label="Close">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="mt-6 space-y-5 overflow-y-auto pr-1 text-xs text-slate-600 leading-relaxed">
-          {/* The three steps, as a sequence rather than repeated cards */}
-          <ol className="relative border-l border-sky-200 ml-1.5 space-y-5 pl-5">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 text-xs leading-relaxed text-gray-600">
+          <ol className="relative space-y-4 border-l border-gray-200 pl-5 ml-1.5">
             {STEPS.map((step, i) => (
               <li key={step.title} className="relative">
-                <span className="absolute -left-[30.5px] top-0 w-5 h-5 rounded-full bg-white border border-sky-200 text-[10px] font-bold text-sky-700 flex items-center justify-center">
+                <span className="absolute -left-[30.5px] top-0 flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] font-semibold text-gray-600">
                   {i + 1}
                 </span>
-                <div className="text-sm font-bold text-slate-800">{step.title}</div>
+                <div className="text-sm font-semibold text-gray-900">{step.title}</div>
                 <p className="mt-1">{step.body}</p>
               </li>
             ))}
           </ol>
 
-          {/* Safety numbers */}
-          <div className="flex items-start gap-3">
-            <ShieldCheck className="w-4 h-4 text-sky-600 mt-0.5 shrink-0" />
+          <div className="flex items-start gap-2.5">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
             <p>
-              <span className="font-semibold text-slate-800">Safety numbers.</span> Every session
-              shows a twelve-digit number derived from your keys. Read it to each other over the
-              phone or in person — that is what proves nobody is sitting in the middle.
+              <span className="font-medium text-gray-900">Safety numbers.</span> Every session shows
+              a twelve-digit number derived from both keys. Read it to each other over the phone or
+              in person — that is what proves nobody is sitting in the middle.
             </p>
           </div>
 
-          {/* Limitations — stated plainly, without labelling itself as a disclaimer */}
-          <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/60 text-amber-950 space-y-2">
-            <h4 className="text-sm font-bold text-amber-900 flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-amber-600" />
+          <div className="rounded-lg border border-amber-200/70 bg-amber-50/60 px-4 py-3 text-amber-950">
+            <h3 className="flex items-center gap-2 text-xs font-semibold text-amber-900">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
               Where this falls short
-            </h4>
-            <ul className="list-disc pl-4 space-y-1.5 text-[11px]">
+            </h3>
+            <ul className="mt-2 list-disc space-y-1.5 pl-4 text-[11px]">
               <li>
                 A signaling service and STUN servers are required to set up the connection, so this
                 is not &quot;zero servers&quot;.
@@ -98,12 +89,8 @@ export function HowItWorksModal({ isOpen, onClose }: HowItWorksModalProps) {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-5 pt-3 border-t border-sky-100 shrink-0 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-5 py-2.5 rounded-xl btn-electric text-white text-xs font-semibold shadow-md"
-          >
+        <div className="flex shrink-0 justify-end border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+          <button onClick={onClose} className="btn btn-primary h-9">
             Close
           </button>
         </div>

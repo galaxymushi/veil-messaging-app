@@ -4,14 +4,14 @@
   "private": true,
   "description": "VEIL — end-to-end encrypted peer-to-peer messaging. Messages travel directly between peers over a WebRTC DataChannel; the signaling server only brokers the handshake and never sees message content.",
   "license": "MIT",
-  "author": "galaxymushizo-netizen",
+  "author": "galaxymushi",
   "homepage": "https://veil-messaging.vercel.app",
   "repository": {
     "type": "git",
-    "url": "https://github.com/galaxymushizo-netizen/veil-messaging-app.git"
+    "url": "https://github.com/galaxymushi/veil-messaging-app.git"
   },
   "bugs": {
-    "url": "https://github.com/galaxymushizo-netizen/veil-messaging-app/issues"
+    "url": "https://github.com/galaxymushi/veil-messaging-app/issues"
   },
   "keywords": [
     "e2ee",

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { ShieldCheck, Copy, Check, Users, QrCode, Sparkles } from "lucide-react";
+import { ShieldCheck, Copy, Check, X } from "lucide-react";
 
 interface SafetyNumberModalProps {
   isOpen: boolean;
@@ -35,82 +35,74 @@ export function SafetyNumberModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md">
-      <div className="relative w-full max-w-md glass-panel rounded-3xl p-6 sm:p-8 shadow-2xl border border-white/90 animate-in fade-in zoom-in-95 duration-200">
-        <div className="flex items-center justify-between pb-3 border-b border-sky-100">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-              <ShieldCheck className="w-5 h-5" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+      <div className="veil-fade-in w-full max-w-md overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-100 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+              <ShieldCheck className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-800">Verify Safety Number</h3>
-              <p className="text-xs text-slate-500">End-to-End Peer Verification</p>
+              <h2 className="text-sm font-semibold text-gray-900">Verify safety number</h2>
+              <p className="text-[11px] text-gray-500">Confirm both devices derive the same code</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors text-sm font-semibold"
-          >
-            ✕
+          <button onClick={onClose} className="icon-btn -mr-1 h-8 w-8" aria-label="Close">
+            <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mt-5 space-y-4">
-          <p className="text-xs text-slate-600 leading-relaxed">
-            To confirm that your direct peer-to-peer session with <span className="font-semibold text-slate-900">{peerName}</span> is not intercepted, compare this numeric code with their screen:
+        <div className="space-y-4 px-5 py-5">
+          <p className="text-xs leading-relaxed text-gray-600">
+            Read this number aloud to <span className="font-medium text-gray-900">{peerName}</span> or
+            compare screens. Both sides must show the identical value.
           </p>
 
-          <div className="p-4 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50/50 border border-sky-200/70 text-center relative group">
-            <div className="text-2xl font-mono font-bold tracking-widest text-sky-950 py-1">
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4 text-center">
+            <div className="font-mono text-2xl font-semibold tracking-[0.18em] text-gray-900">
               {safetyNumber}
             </div>
             <button
               onClick={handleCopy}
-              className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-sky-700 bg-white/80 hover:bg-white rounded-lg border border-sky-200/80 transition-all shadow-sm"
+              className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-gray-500 hover:text-gray-900"
             >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-              {copied ? "Copied" : "Copy Code"}
+              {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
+              {copied ? "Copied" : "Copy code"}
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-[11px] font-mono bg-white/60 p-3 rounded-xl border border-sky-100">
-            <div>
-              <span className="block text-[10px] text-slate-400 font-sans">Your Key Fingerprint</span>
-              <span className="text-slate-800 font-medium">{myFingerprint}</span>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="panel-muted px-3 py-2.5">
+              <span className="overline">Your key</span>
+              <div className="mt-1 truncate font-mono text-[11px] text-gray-700">{myFingerprint}</div>
             </div>
-            <div>
-              <span className="block text-[10px] text-slate-400 font-sans">{peerName}&apos;s Fingerprint</span>
-              <span className="text-slate-800 font-medium">{peerFingerprint || "Ephemeral"}</span>
+            <div className="panel-muted px-3 py-2.5">
+              <span className="overline">{peerName}</span>
+              <div className="mt-1 truncate font-mono text-[11px] text-gray-700">
+                {peerFingerprint || "Ephemeral"}
+              </div>
             </div>
           </div>
 
-          <div className="bg-sky-50/50 p-3 rounded-xl border border-sky-100 text-[11px] text-slate-600 space-y-1">
-            <div className="font-medium text-slate-800 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-              How it works
-            </div>
-            <p>
-              If the safety numbers match on both devices, your encryption keys are mathematically identical and no intermediary can tamper with your messages.
-            </p>
-          </div>
+          <p className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-[11px] leading-relaxed text-gray-500">
+            If the numbers match, your keys are identical and no intermediary can read or alter the
+            conversation.
+          </p>
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-          >
+        <div className="flex items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+          <button onClick={onClose} className="btn btn-secondary h-9">
             Dismiss
           </button>
           <button
             onClick={() => {
-              if (onMarkVerified) onMarkVerified();
+              onMarkVerified?.();
               onClose();
             }}
-            className="px-4 py-2 rounded-xl text-xs font-semibold btn-electric text-white shadow-sm flex items-center gap-1.5"
+            className="btn btn-primary h-9"
           >
-            <Check className="w-3.5 h-3.5" />
-            {isVerified ? "Verified" : "Mark as Verified"}
+            <Check className="h-3.5 w-3.5" />
+            {isVerified ? "Verified" : "Mark as verified"}
           </button>
         </div>
       </div>
